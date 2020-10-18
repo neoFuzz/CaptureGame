@@ -1070,10 +1070,45 @@ namespace CaptureGame
 
         private void Exit_App()
         {
+            string selectedVD = "", selectedARO = "", selectedAID = "";
+            
+            // get sound output devices
+            DsDevice[] devices;
+            devices = DsDevice.GetDevicesOfCat(FilterCategory.AudioRendererCategory);
+            foreach (ToolStripMenuItem i in audioOutputToolStripMenuItem.DropDownItems)
+            { // Search the output device menu for the selected device and get it's index number
+                if (i.Checked)
+                {
+                    foreach (DsDevice dsd in devices)
+                    {
+                        if (dsd.Name.Equals(i.Text))
+                        {
+                            selectedARO = dsd.Name;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Mic input
+            devices = DsDevice.GetDevicesOfCat(FilterCategory.AudioInputDevice);
+            foreach (ToolStripMenuItem i in audioDevicesToolStripMenuItem.DropDownItems)
+            {  // find the desired input device to be used from the AudioDevices menu
+                if (i.Checked)
+                { selectedAID = i.Text; }
+            }
+            // Save user settings
+            Settings.Default.LastAudioRenderer = selectedARO;
+            Settings.Default.LastAudioIn = selectedAID;
+            Settings.Default.LastVideoDevice = selectedVD;
             Settings.Default.Save();
+            // Kill everything running
+            m_objMediaControl.Stop();
+            Marshal.ReleaseComObject(m_objFilterGraph);
+            m_objMediaControl = null;
+            m_objBasicAudio = null;
             if (capture != null)
             { capture.Stop(); }
-            Marshal.ReleaseComObject(m_objFilterGraph);
             components.Dispose();
             Application.Exit();
         }

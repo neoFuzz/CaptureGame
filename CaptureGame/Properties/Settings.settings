@@ -5,5 +5,14 @@
     <Setting Name="GameName" Type="System.String" Scope="User">
       <Value Profile="(Default)">Super Smash Bros. Ultimate</Value>
     </Setting>
+    <Setting Name="LastVideoDevice" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="LastAudioIn" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="LastAudioRenderer" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
   </Settings>
 </SettingsFile>

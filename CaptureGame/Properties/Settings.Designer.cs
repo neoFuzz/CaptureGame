@@ -34,5 +34,41 @@ namespace CaptureGame.Properties {
                 this["GameName"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string LastVideoDevice {
+            get {
+                return ((string)(this["LastVideoDevice"]));
+            }
+            set {
+                this["LastVideoDevice"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string LastAudioIn {
+            get {
+                return ((string)(this["LastAudioIn"]));
+            }
+            set {
+                this["LastAudioIn"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string LastAudioRenderer {
+            get {
+                return ((string)(this["LastAudioRenderer"]));
+            }
+            set {
+                this["LastAudioRenderer"] = value;
+            }
+        }
     }
 }

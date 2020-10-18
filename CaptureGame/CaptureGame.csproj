@@ -7,7 +7,7 @@
     <ProjectGuid>{49FE20D6-7F04-42B2-A3E0-C5B7A2283EFD}</ProjectGuid>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ApplicationIcon>App.ico</ApplicationIcon>
+    <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
     <AssemblyKeyContainerName />
     <AssemblyName>CaptureGame</AssemblyName>
     <AssemblyOriginatorKeyFile />
@@ -142,6 +142,7 @@
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
     <Content Include="App.ico" />
+    <None Include="Resources\AppIcon.ico" />
     <Content Include="scrapped_code.txt" />
     <None Include="app.config" />
     <None Include="Properties\Settings.settings">
