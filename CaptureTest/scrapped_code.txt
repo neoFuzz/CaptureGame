@@ -1,0 +1,31 @@
+﻿
+                    //DEVICE_CLSID = CLSID_AudioInputDeviceCategory;// the input device category
+                    // Moniker can be set from the device varibles too
+                    //pDeviceMonik = Device_Read(pDeviceEnum, DirectShowLib.FilterCategory.AudioInputDevice, deviceAID);//read the required device 
+                    pDeviceMonik = deviceAID.Mon;
+                    pInputDevice = Device_Init(pDeviceMonik, pInputDevice);//Return the device after initializing it
+                    Device_Addition(m_objFilterGraph, pInputDevice, selectedO );//add device to graph
+                    /*
+                    //Infinite Pin Tee filter
+                    Guid DEVICE_CLSID = DirectShowLib.FilterCategory.LegacyAmFilterCategory;// the DirectShow filters category
+                    pDeviceMonik = Device_Read(pDeviceEnum, deviceAID.Mon, DEVICE_CLSID, deviceAID.Name);//read the required device
+                    pPinTeeFilter = Device_Init(pDeviceMonik, pPinTeeFilter); //Return the device after initializing it
+                    Device_Addition(m_objFilterGraph, pPinTeeFilter, "Infinite Pin Tee Filter"); //add device to graph
+                    /**/
+                    //Default output device
+                    //pDeviceMonik = Device_Read(pDeviceEnum, deviceARO.ClassID, deviceARO);//read the required device
+                    pDeviceMonik = deviceARO.Mon;
+                    pOutputDevice = Device_Init(pDeviceMonik, pOutputDevice);//Return the device after initializing it
+                    Device_Addition(m_objFilterGraph, pOutputDevice, deviceARO.Name);//add device to graph
+
+                    //Connect input to output, Mic to Infinite Pin Tee filter
+                    //Device_Connect(pInputDevice, pPinTeeFilter, "Capture", "Input"); // Infinite Pin Tee Filter
+                    Device_Connect(pInputDevice, pOutputDevice, "Capture", "Input"); // Straight to Output
+
+                    /// TODO: use for capture
+                    //Connect input to output, Infinite Pin Tee filter to AudioRecorder WAV Dest filter
+                    //Device_Connect(pPinTeeFilter, pWAVRecorder, "Output1", "In");
+
+                    //Connect input to output, Infinite Pin Tee filter to Default sound output i.e. headphones or speakers etc.
+                    //Device_Connect(pPinTeeFilter, pOutputDevice, "Output2", deviceARO.Name);
+                    
