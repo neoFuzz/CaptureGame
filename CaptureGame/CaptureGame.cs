@@ -51,9 +51,6 @@ namespace CaptureGame
         private IContainer components;
         private ToolStripMenuItem audioOutputToolStripMenuItem;
         private ToolStripMenuItem breakerToolStripMenuItem;
-        /// <summary>
-        /// TODO: find this and add audio
-        /// </summary>
         private static IGraphBuilder m_objFilterGraph = null;
         private static IBasicAudio m_objBasicAudio = null;
         private static IMediaControl m_objMediaControl = null;
@@ -75,6 +72,39 @@ namespace CaptureGame
             capture = new Capture(filters.VideoInputDevices[0], filters.AudioInputDevices[0]);
             capture.CaptureComplete += new EventHandler(OnCaptureComplete);
 #endif
+            /**/
+            // first run capture = null, so set up settings.
+            // Set to default device because there is a empty user setting. 
+            int aid = 0, vid = 0;
+            bool aSet = false, vSet = false;
+            if (!Settings.Default.LastVideoDevice.Equals(""))
+            {
+                for (int i = 0; i < filters.VideoInputDevices.Count; i++)
+                {
+                    if (filters.VideoInputDevices[i].Name.Equals(Settings.Default.LastVideoDevice))
+                    { vid = i; vSet = true; }
+                }
+            }
+            if (!Settings.Default.LastAudioIn.Equals(""))
+            {
+                for (int i = 0; i < filters.AudioInputDevices.Count; i++)
+                {
+                    if (filters.AudioInputDevices[i].Name.Equals(Settings.Default.LastAudioIn))
+                    { aid = i; aSet = true;  }
+                }
+            }
+            if (aSet && vSet)
+            {
+                capture = new Capture(filters.VideoInputDevices[vid], filters.AudioInputDevices[aid]);
+                capture.CaptureComplete += new EventHandler(OnCaptureComplete);
+            }
+            // Check the user settings; if the Device has a string, add a menu item with the string.
+            if (!Settings.Default.LastAudioRenderer.Equals(""))
+            { // using the all the varibles is overkill but updateMenu() will see this checked and make it checked again.
+                MenuItemAdd(Settings.Default.LastAudioRenderer, Resources.IconAudio.ToBitmap(), new EventHandler(MnuAudioOutput_Click),
+                        true, audioOutputToolStripMenuItem); 
+            }
+
             // Update the main menu
             // Much of the interesting work of this sample occurs here
             try {
@@ -109,11 +139,13 @@ namespace CaptureGame
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FrmCaptureGame));
             this.mainMenu = new System.Windows.Forms.MainMenu(this.components);
             this.panelVideo = new System.Windows.Forms.Panel();
             this.msMainMenu = new System.Windows.Forms.MenuStrip();
             this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.GameNameToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator7 = new System.Windows.Forms.ToolStripSeparator();
             this.exitToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.devicesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.videoDevicesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -145,7 +177,6 @@ namespace CaptureGame
             this.propertyPagesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator6 = new System.Windows.Forms.ToolStripSeparator();
             this.previewToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.toolStripSeparator7 = new System.Windows.Forms.ToolStripSeparator();
             this.msMainMenu.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -186,14 +217,19 @@ namespace CaptureGame
             // GameNameToolStripMenuItem
             // 
             this.GameNameToolStripMenuItem.Name = "GameNameToolStripMenuItem";
-            this.GameNameToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.GameNameToolStripMenuItem.Size = new System.Drawing.Size(140, 22);
             this.GameNameToolStripMenuItem.Text = "Game Name";
             this.GameNameToolStripMenuItem.Click += new System.EventHandler(this.GameNameToolStripMenuItem_Click);
+            // 
+            // toolStripSeparator7
+            // 
+            this.toolStripSeparator7.Name = "toolStripSeparator7";
+            this.toolStripSeparator7.Size = new System.Drawing.Size(137, 6);
             // 
             // exitToolStripMenuItem
             // 
             this.exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-            this.exitToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.exitToolStripMenuItem.Size = new System.Drawing.Size(140, 22);
             this.exitToolStripMenuItem.Text = "E&xit";
             this.exitToolStripMenuItem.Click += new System.EventHandler(this.ExitToolStripMenuItem_Click);
             // 
@@ -279,7 +315,7 @@ namespace CaptureGame
             // scanDevicesToolStripMenuItem
             // 
             this.scanDevicesToolStripMenuItem.Name = "scanDevicesToolStripMenuItem";
-            this.scanDevicesToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.scanDevicesToolStripMenuItem.Size = new System.Drawing.Size(178, 22);
             this.scanDevicesToolStripMenuItem.Text = "Scan Devices";
             this.scanDevicesToolStripMenuItem.Click += new System.EventHandler(this.MnuScan_Click);
             // 
@@ -409,17 +445,13 @@ namespace CaptureGame
             this.previewToolStripMenuItem.Text = "&Preview";
             this.previewToolStripMenuItem.Click += new System.EventHandler(this.PreviewToolStripMenuItem_Click);
             // 
-            // toolStripSeparator7
-            // 
-            this.toolStripSeparator7.Name = "toolStripSeparator7";
-            this.toolStripSeparator7.Size = new System.Drawing.Size(177, 6);
-            // 
             // FrmCaptureGame
             // 
             this.AutoScaleBaseSize = new System.Drawing.Size(5, 13);
             this.ClientSize = new System.Drawing.Size(496, 385);
             this.Controls.Add(this.panelVideo);
             this.Controls.Add(this.msMainMenu);
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MainMenuStrip = this.msMainMenu;
             this.Menu = this.mainMenu;
             this.Name = "FrmCaptureGame";
@@ -470,7 +502,10 @@ namespace CaptureGame
             // Load video devices
             Filter videoDevice = null;
             if (capture != null)
+            {
                 videoDevice = capture.VideoDevice;
+                Settings.Default.LastVideoDevice = capture.VideoDevice.Name; // Save new device to user settings
+            }
             videoDevicesToolStripMenuItem.DropDownItems.Clear();
 
             tsmi.Checked = (videoDevice == null);
@@ -478,9 +513,8 @@ namespace CaptureGame
             for (int c = 0; c < filters.VideoInputDevices.Count; c++)
             {
                 f = filters.VideoInputDevices[c];
-                tsmi = new ToolStripMenuItem(f.Name, null, new EventHandler(mnuVideoDevices_Click));
-                tsmi.Checked = (videoDevice == f);
-                videoDevicesToolStripMenuItem.DropDownItems.Add(tsmi);
+                MenuItemAdd(f.Name, new EventHandler(mnuVideoDevices_Click), (videoDevice == f),
+                            videoDevicesToolStripMenuItem);
             }
             videoDevicesToolStripMenuItem.Enabled = (filters.VideoInputDevices.Count > 0);
 
@@ -495,9 +529,8 @@ namespace CaptureGame
             for (int c = 0; c < filters.AudioInputDevices.Count; c++)
             {
                 f = filters.AudioInputDevices[c];
-                tsmi = new ToolStripMenuItem(f.Name, null, new EventHandler(mnuAudioDevices_Click));
-                tsmi.Checked = (audioDevice == f);
-                audioDevicesToolStripMenuItem.DropDownItems.Add(tsmi);
+                MenuItemAdd(f.Name, new EventHandler(mnuAudioDevices_Click), audioDevice == f,
+                            audioDevicesToolStripMenuItem);
             }
             audioDevicesToolStripMenuItem.Enabled = (filters.AudioInputDevices.Count > 0);
 
@@ -512,24 +545,20 @@ namespace CaptureGame
                     if (i.Checked)
                     { CheckedDeviceName = i.Text; }
                 }
-                /*for (int i = 0; i < audioOutputToolStripMenuItem.DropDownItems.Count; i++)
-                {
-                    tsmi = (ToolStripMenuItem)audioOutputToolStripMenuItem.DropDownItems[i];
-                    //If the item is checked, store the checked item to the string
-                    if (tsmi.Checked)
-                    { CheckedDeviceName = devices[i].Name; }
-                }/**/
                 // Set the first device as Output on the first run
                 if (CheckedDeviceName.Equals(""))
-                { CheckedDeviceName = devices[0].Name; }
-
+                {
+                    if (Settings.Default.LastAudioRenderer.Length.Equals(0))
+                    { CheckedDeviceName = devices[0].Name; }
+                    else { CheckedDeviceName = Settings.Default.LastAudioRenderer;  }
+                }
                 audioOutputToolStripMenuItem.DropDownItems.Clear();
                 for (int c = 0; c < devices.Length; c++)
                 {   /// TODO: work out which devices are usable and process accodingly
                     /// Some devices show as DirectShow etc
 
                     MenuItemAdd(devices[c].Name, Resources.IconAudio.ToBitmap(), new EventHandler(MnuAudioOutput_Click),
-                        (devices[c].Name.Equals(CheckedDeviceName)), audioOutputToolStripMenuItem);
+                        devices[c].Name.Equals(CheckedDeviceName), audioOutputToolStripMenuItem);
                 }
                 audioOutputToolStripMenuItem.Enabled = true;
             }
@@ -793,9 +822,7 @@ namespace CaptureGame
                 updateMenu();
             }
             catch (Exception ex)
-            {
-                MessageBox.Show("Video device not supported.\n\n" + ex.Message + "\n\n" + ex.ToString());
-            }
+            { MessageBox.Show("Video device not supported.\n\n" + ex.Message + "\n\n" + ex.ToString()); }
         }
 
         private void mnuAudioDevices_Click(object sender, System.EventArgs e)
@@ -807,6 +834,7 @@ namespace CaptureGame
                 // by creating a new Capture object.
                 Filter videoDevice = null;
                 Filter audioDevice = null;
+
                 if (capture != null)
                 {
                     videoDevice = capture.VideoDevice;
@@ -814,25 +842,23 @@ namespace CaptureGame
                     capture.Dispose();
                     capture = null;
                 }
-
                 // Get new audio device
                 ToolStripMenuItem m = sender as ToolStripMenuItem;
                 audioDevice = (m.Owner.Items.Count > 0 ? filters.AudioInputDevices[m.Owner.Items.IndexOf(m) - 1] : null);
-
+                WalkDevices(out int readIn, out int readOut);
+                Connect_up(readIn, readOut);
                 // Create capture object
                 if ((videoDevice != null) || (audioDevice != null))
                 {
                     capture = new Capture(videoDevice, audioDevice);
                     capture.CaptureComplete += new EventHandler(OnCaptureComplete);
                 }
-
+                
                 // Update the menu
                 updateMenu();
             }
             catch (Exception ex)
-            {
-                MessageBox.Show("Audio device not supported.\n\n" + ex.Message + "\n\n" + ex.ToString());
-            }
+            { MessageBox.Show("Audio device not supported.\n\n" + ex.Message + "\n\n" + ex.ToString()); }
         }
         private void MnuAudioOutput_Click(object sender, System.EventArgs e)
         {
@@ -841,7 +867,11 @@ namespace CaptureGame
                 // Get new audio output
                 ToolStripMenuItem m = sender as ToolStripMenuItem;
                 m.Checked = true;
-
+                foreach (ToolStripMenuItem i in audioOutputToolStripMenuItem.DropDownItems)
+                {
+                    // Make sure the sender is the only checked item
+                    if (i != m) { i.Checked = false; }
+                }
                 // Update the menu
                 updateMenu();
             }
@@ -1071,7 +1101,8 @@ namespace CaptureGame
         private void Exit_App()
         {
             string selectedVD = "", selectedARO = "", selectedAID = "";
-            
+            try { selectedVD = capture.VideoDevice.Name; }
+            catch (Exception) { }
             // get sound output devices
             DsDevice[] devices;
             devices = DsDevice.GetDevicesOfCat(FilterCategory.AudioRendererCategory);
@@ -1103,7 +1134,8 @@ namespace CaptureGame
             Settings.Default.LastVideoDevice = selectedVD;
             Settings.Default.Save();
             // Kill everything running
-            m_objMediaControl.Stop();
+            try { m_objMediaControl.Stop(); }
+            catch (Exception) { }
             Marshal.ReleaseComObject(m_objFilterGraph);
             m_objMediaControl = null;
             m_objBasicAudio = null;
@@ -1125,21 +1157,27 @@ namespace CaptureGame
             { msMainMenu.Hide(); }
             else
             { msMainMenu.Show(); }
-            FrmCaptureGame.ActiveForm.Activate();
+            ActiveForm.Activate();
 
             // Change to borderless
-            if (FrmCaptureGame.ActiveForm.FormBorderStyle == FormBorderStyle.None)
-            { FrmCaptureGame.ActiveForm.FormBorderStyle = FormBorderStyle.FixedSingle; }
+            if (ActiveForm.FormBorderStyle == FormBorderStyle.None)
+            { ActiveForm.FormBorderStyle = FormBorderStyle.FixedSingle; }
             else
             {
-                FrmCaptureGame.ActiveForm.FormBorderStyle = FormBorderStyle.None;
-                FrmCaptureGame.ActiveForm.Height = 1080;
-                FrmCaptureGame.ActiveForm.Width = 1920;
+                ActiveForm.FormBorderStyle = FormBorderStyle.None;
+                //FrmCaptureGame.ActiveForm.Height = 1080;
+                //FrmCaptureGame.ActiveForm.Width = 1920;
+                try { ActiveForm.Size = capture.FrameSize; }
+                catch (Exception ex)
+                {
+                    ActiveForm.Height = 720;
+                    ActiveForm.Width = 1280;
+                }
             }
         }
-
         private void MnuScan_Click(object sender, EventArgs e)
         {
+            filters = new Filters();
             updateMenu();
         }
 
@@ -1156,7 +1194,7 @@ namespace CaptureGame
             dropDownTarget.DropDownItems.Add(tsmi);
         }
         /// <summary>
-        /// 
+        /// Add Items to specified ToolStripMenuItem's DropDownItems with picture
         /// </summary>
         /// <param name="itemText">Text for the menu item.</param>
         /// <param name="mnuImage">The image that appears next to the item, like an icon</param>
@@ -1178,51 +1216,10 @@ namespace CaptureGame
                     previewToolStripMenuItem.Checked = true;
 
                     ///TODO: Sync issue?
-
-                    string source = null ;
-                    int readIn = 0, readOut = 0;
-
-                    // get sound output devices
-                    DsDevice[] devices;
-                    devices = DsDevice.GetDevicesOfCat(FilterCategory.AudioRendererCategory);
-                    int count = 0;
-                    foreach (ToolStripMenuItem i in audioOutputToolStripMenuItem.DropDownItems)
-                    { // Search the output device menu for the selected device and get it's index number
-                        if (i.Checked)
-                        {
-                            foreach(DsDevice dsd in devices)
-                            {
-                                if (dsd.Name.Equals(i.Text))
-                                {
-                                    readOut = count;
-                                    break;
-                                }
-                            }
-                        }
-                        count++;
-                    }
-                   
-                    // Mic input
-                    devices = DsDevice.GetDevicesOfCat(FilterCategory.AudioInputDevice);
-                    count = 0;
-                    
-                    foreach (ToolStripMenuItem i in audioDevicesToolStripMenuItem.DropDownItems)
-                    {  // find the desired input device to be used from the AudioDevices menu
-                        if (i.Checked)
-                        { source = i.Text; }
-                    }
-                    //Find the checked device in the 'devices' list and get the index integer of it
-                    foreach (DsDevice dsd in devices)
-                    {
-                        if (dsd.Name.Equals(source))
-                        {
-                            readIn = count;
-                            break;
-                        }
-                        count++;
-                    }
+                    int readIn, readOut;
+                    WalkDevices(out readIn, out readOut);
                     // Connect input to output then run
-                    Connect_up(readIn,readOut);
+                    Connect_up(readIn, readOut);
                     m_objMediaControl.Run();
                 }
                 else
@@ -1238,6 +1235,57 @@ namespace CaptureGame
             catch (Exception ex)
             { MessageBox.Show("Unable to enable/disable preview.\n\n" + ex.Message + "\n\n" + ex.ToString()); }
         }
+        /// <summary>
+        /// Look through device lists for checked devices. The output integers can be feed to Connect_Up
+        /// </summary>
+        /// <param name="readIn">integer of Audio Input</param>
+        /// <param name="readOut">integer of Audio Renderer</param>
+        private void WalkDevices(out int readIn, out int readOut)
+        {
+            string source = null;
+            readIn = 0;
+            readOut = 0;
+
+            // get sound output devices
+            DsDevice[] devices;
+            devices = DsDevice.GetDevicesOfCat(FilterCategory.AudioRendererCategory);
+            int count = 0;
+            foreach (ToolStripMenuItem i in audioOutputToolStripMenuItem.DropDownItems)
+            { // Search the output device menu for the selected device and get it's index number
+                if (i.Checked)
+                {
+                    foreach (DsDevice dsd in devices)
+                    {
+                        if (dsd.Name.Equals(i.Text))
+                        {
+                            readOut = count;
+                            break;
+                        }
+                    }
+                }
+                count++;
+            }
+
+            // Mic input
+            devices = DsDevice.GetDevicesOfCat(FilterCategory.AudioInputDevice);
+            count = 0;
+
+            foreach (ToolStripMenuItem i in audioDevicesToolStripMenuItem.DropDownItems)
+            {  // find the desired input device to be used from the AudioDevices menu
+                if (i.Checked)
+                { source = i.Text; }
+            }
+            //Find the checked device in the 'devices' list and get the index integer of it
+            foreach (DsDevice dsd in devices)
+            {
+                if (dsd.Name.Equals(source))
+                {
+                    readIn = count;
+                    break;
+                }
+                count++;
+            }
+        }
 
         private void FrmCaptureTest_KeyPress(object sender, KeyPressEventArgs e)
         {
@@ -1250,18 +1298,7 @@ namespace CaptureGame
                     PreviewToolStripMenuItem_Click(this, null);
                     break;
             }
-                
             
-        }
-
-        private void StartPreviewToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            capture.Start();
-        }
-
-        private void StopPreviewToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-
         }
 
         private void VideoCapabilitiesToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1350,10 +1387,6 @@ namespace CaptureGame
 
         }
 
-        private void ScanDevicesToolStripMenuItem_Click_1(object sender, EventArgs e)
-        {
-
-        }
         private static void Connect_up(int dInput, int dOutput)
         {
             object source = null, inputD = null;
@@ -1362,6 +1395,8 @@ namespace CaptureGame
             DsDevice device = devices[dOutput];
             Guid iid = typeof(IBaseFilter).GUID;
             device.Mon.BindToObject(null, null, ref iid, out source);
+            m_objMediaControl.Stop();
+            m_objBasicAudio = null;
 
             m_objFilterGraph = (IGraphBuilder)new FilterGraph();
             m_objFilterGraph.AddFilter((IBaseFilter)source, "Audio Input pin (rendered)");

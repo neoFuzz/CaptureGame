@@ -143,6 +143,7 @@
     </Compile>
     <Content Include="App.ico" />
     <None Include="Resources\AppIcon.ico" />
+    <Content Include="AppIcon.ico" />
     <Content Include="scrapped_code.txt" />
     <None Include="app.config" />
     <None Include="Properties\Settings.settings">
