@@ -57,6 +57,8 @@ namespace CaptureGame
         private ToolStripMenuItem GameNameToolStripMenuItem;
         private ToolStripSeparator toolStripSeparator7;
         private DsDevice[] devices;
+        private ToolStripMenuItem audioDelayToolStripMenuItem;
+        Timer sleepHack = new Timer();
 
         public FrmCaptureGame()
         {
@@ -100,20 +102,21 @@ namespace CaptureGame
             }
             // Check the user settings; if the Device has a string, add a menu item with the string.
             if (!Settings.Default.LastAudioRenderer.Equals(""))
-            { // using the all the varibles is overkill but updateMenu() will see this checked and make it checked again.
-                MenuItemAdd(Settings.Default.LastAudioRenderer, Resources.IconAudio.ToBitmap(), new EventHandler(MnuAudioOutput_Click),
-                        true, audioOutputToolStripMenuItem); 
+            { // updateMenu() will see this checked and make it checked again.
+                MenuItemAdd(Settings.Default.LastAudioRenderer, null, true, audioOutputToolStripMenuItem); 
             }
 
             // Update the main menu
-            // Much of the interesting work of this sample occurs here
+            // Much of the interesting work occurs here
             try {
                 updateMenu();
                 m_objFilterGraph = (IGraphBuilder) new FilterGraph();
                 m_objMediaControl = m_objFilterGraph as IMediaControl;
             } catch { }
-            Activate();
-            this.Text = Settings.Default.GameName;
+            // Load the GameName from settings. There is a defult set for users straight away
+            Text = Settings.Default.GameName;
+            // Activate the form!
+            Activate();            
         }
 
         /// <summary>
@@ -177,6 +180,7 @@ namespace CaptureGame
             this.propertyPagesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator6 = new System.Windows.Forms.ToolStripSeparator();
             this.previewToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.audioDelayToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.msMainMenu.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -207,6 +211,7 @@ namespace CaptureGame
             // 
             this.fileToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.GameNameToolStripMenuItem,
+            this.audioDelayToolStripMenuItem,
             this.toolStripSeparator7,
             this.exitToolStripMenuItem});
             this.fileToolStripMenuItem.Name = "fileToolStripMenuItem";
@@ -217,19 +222,19 @@ namespace CaptureGame
             // GameNameToolStripMenuItem
             // 
             this.GameNameToolStripMenuItem.Name = "GameNameToolStripMenuItem";
-            this.GameNameToolStripMenuItem.Size = new System.Drawing.Size(140, 22);
-            this.GameNameToolStripMenuItem.Text = "Game Name";
+            this.GameNameToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.GameNameToolStripMenuItem.Text = "Game Name...";
             this.GameNameToolStripMenuItem.Click += new System.EventHandler(this.GameNameToolStripMenuItem_Click);
             // 
             // toolStripSeparator7
             // 
             this.toolStripSeparator7.Name = "toolStripSeparator7";
-            this.toolStripSeparator7.Size = new System.Drawing.Size(137, 6);
+            this.toolStripSeparator7.Size = new System.Drawing.Size(177, 6);
             // 
             // exitToolStripMenuItem
             // 
             this.exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-            this.exitToolStripMenuItem.Size = new System.Drawing.Size(140, 22);
+            this.exitToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
             this.exitToolStripMenuItem.Text = "E&xit";
             this.exitToolStripMenuItem.Click += new System.EventHandler(this.ExitToolStripMenuItem_Click);
             // 
@@ -445,6 +450,13 @@ namespace CaptureGame
             this.previewToolStripMenuItem.Text = "&Preview";
             this.previewToolStripMenuItem.Click += new System.EventHandler(this.PreviewToolStripMenuItem_Click);
             // 
+            // audioDelayToolStripMenuItem
+            // 
+            this.audioDelayToolStripMenuItem.Name = "audioDelayToolStripMenuItem";
+            this.audioDelayToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.audioDelayToolStripMenuItem.Text = "Audio Delay...";
+            this.audioDelayToolStripMenuItem.Click += new System.EventHandler(this.AudioDelayToolStripMenuItem_Click);
+            // 
             // FrmCaptureGame
             // 
             this.AutoScaleBaseSize = new System.Drawing.Size(5, 13);
@@ -486,7 +498,7 @@ namespace CaptureGame
         {
             ToolStripMenuItem tsmi =
                 new ToolStripMenuItem("(None)", null, new EventHandler(mnuVideoDevices_Click));
-            Filter f;
+            Filter f, videoDevice = null, audioDevice = null;
             Source s;
             Source current;
             PropertyPage p;
@@ -500,7 +512,6 @@ namespace CaptureGame
             }
 
             // Load video devices
-            Filter videoDevice = null;
             if (capture != null)
             {
                 videoDevice = capture.VideoDevice;
@@ -519,7 +530,6 @@ namespace CaptureGame
             videoDevicesToolStripMenuItem.Enabled = (filters.VideoInputDevices.Count > 0);
 
             // Load audio devices
-            Filter audioDevice = null;
             if (capture != null)
                 audioDevice = capture.AudioDevice;
             audioDevicesToolStripMenuItem.DropDownItems.Clear();
@@ -545,12 +555,26 @@ namespace CaptureGame
                     if (i.Checked)
                     { CheckedDeviceName = i.Text; }
                 }
-                // Set the first device as Output on the first run
+                // Scan devices and mark the the checked device.
+                // This is to determine if the device still exists in the system
+                foreach (DsDevice dsd in devices)
+                {
+                    if (dsd.Name.Equals(CheckedDeviceName))
+                    { CheckedDeviceName = "%" + dsd.Name; }
+
+                }
+                // Remove the mark from the checked device,
+                if (CheckedDeviceName.IndexOf("%") == 0)
+                { CheckedDeviceName = CheckedDeviceName.TrimStart('%'); }
+                else { CheckedDeviceName = ""; }
+                // Set the first device as Output on the first run or if previous device is missing
                 if (CheckedDeviceName.Equals(""))
                 {
-                    if (Settings.Default.LastAudioRenderer.Length.Equals(0))
-                    { CheckedDeviceName = devices[0].Name; }
-                    else { CheckedDeviceName = Settings.Default.LastAudioRenderer;  }
+                    if (CheckedDeviceName.Length.Equals(0))
+                    {
+                        Settings.Default.LastAudioRenderer = devices[0].Name;
+                        CheckedDeviceName = devices[0].Name;
+                    }
                 }
                 audioOutputToolStripMenuItem.DropDownItems.Clear();
                 for (int c = 0; c < devices.Length; c++)
@@ -610,9 +634,7 @@ namespace CaptureGame
                 for (int c = 0; c < capture.VideoSources.Count; c++)
                 {
                     s = capture.VideoSources[c];
-                    tsmi = new ToolStripMenuItem(s.Name, null, new EventHandler(mnuVideoSources_Click));
-                    tsmi.Checked = (current == s);
-                    videoSourcesToolStripMenuItem.DropDownItems.Add(tsmi);
+                    MenuItemAdd(s.Name, new EventHandler(mnuVideoSources_Click), (current == s), videoSourcesToolStripMenuItem);
                 }
                 videoSourcesToolStripMenuItem.Enabled = (capture.VideoSources.Count > 0);
             }
@@ -663,27 +685,18 @@ namespace CaptureGame
             {
                 videoFrameSizeToolStripMenuItem.DropDownItems.Clear();
                 Size frameSize = capture.FrameSize;
-                tsmi = new ToolStripMenuItem("160 x 120", null, new EventHandler(mnuFrameSizes_Click));
-                tsmi.Checked = (frameSize == new Size(160, 120));
-                videoFrameSizeToolStripMenuItem.DropDownItems.Add(tsmi);
-                tsmi = new ToolStripMenuItem("320 x 240", null, new EventHandler(mnuFrameSizes_Click));
-                tsmi.Checked = (frameSize == new Size(320, 240));
-                videoFrameSizeToolStripMenuItem.DropDownItems.Add(tsmi);
-                tsmi = new ToolStripMenuItem("640 x 480", null, new EventHandler(mnuFrameSizes_Click));
-                tsmi.Checked = (frameSize == new Size(640, 480));
-                videoFrameSizeToolStripMenuItem.DropDownItems.Add(tsmi);
-                tsmi = new ToolStripMenuItem("1024 x 768", null, new EventHandler(mnuFrameSizes_Click));
-                tsmi.Checked = (frameSize == new Size(1024, 768));
-                videoFrameSizeToolStripMenuItem.DropDownItems.Add(tsmi);
-                tsmi = new ToolStripMenuItem("1280 x 720", null, new EventHandler(mnuFrameSizes_Click));
-                tsmi.Checked = (frameSize == new Size(1280, 720));
-                videoFrameSizeToolStripMenuItem.DropDownItems.Add(tsmi);
-                tsmi = new ToolStripMenuItem("1920 x 1080", null, new EventHandler(mnuFrameSizes_Click));
-                tsmi.Checked = (frameSize == new Size(1920, 1080));
-                tsmi.Enabled = (frameSize == new Size(1920, 1080)) ? true : false;
-
-                videoFrameSizeToolStripMenuItem.DropDownItems.Add(tsmi);
-
+                MenuItemAdd("160 x 120", new EventHandler(mnuFrameSizes_Click), frameSize == new Size(160, 120),
+                            videoFrameSizeToolStripMenuItem);
+                MenuItemAdd("320 x 240", new EventHandler(mnuFrameSizes_Click), frameSize == new Size(320, 240),
+                            videoFrameSizeToolStripMenuItem);
+                MenuItemAdd("640 x 480", new EventHandler(mnuFrameSizes_Click), frameSize == new Size(640, 480),
+                            videoFrameSizeToolStripMenuItem);
+                MenuItemAdd("1024 x 768", new EventHandler(mnuFrameSizes_Click),frameSize == new Size(1024, 768),
+                            videoFrameSizeToolStripMenuItem);
+                MenuItemAdd("1280 x 720", null, new EventHandler(mnuFrameSizes_Click), frameSize == new Size(1280, 720),
+                            videoFrameSizeToolStripMenuItem);
+                MenuItemAdd("1920 x 1080", new EventHandler(mnuFrameSizes_Click),
+                            (frameSize == new Size(1920, 1080) ? true : false), videoFrameSizeToolStripMenuItem);
                 videoFrameSizeToolStripMenuItem.Enabled = true;
             }
             catch { videoFrameSizeToolStripMenuItem.Enabled = false; }
@@ -693,14 +706,10 @@ namespace CaptureGame
             {
                 audioChannelsToolStripMenuItem.DropDownItems.Clear();
                 short audioChannels = capture.AudioChannels;
-                tsmi = new ToolStripMenuItem("Mono", null, new EventHandler(mnuAudioChannels_Click));
-                tsmi.Checked = (audioChannels == 1);
-                audioChannelsToolStripMenuItem.DropDownItems.Add(tsmi);
-                tsmi = new ToolStripMenuItem("Stereo", null, new EventHandler(mnuAudioChannels_Click));
-                tsmi.Checked = (audioChannels == 2);
-                audioChannelsToolStripMenuItem.DropDownItems.Add(tsmi);
+                MenuItemAdd("Mono", new EventHandler(mnuAudioChannels_Click), (audioChannels == 1), audioChannelsToolStripMenuItem);
+                MenuItemAdd("Stereo", null, new EventHandler(mnuAudioChannels_Click), (audioChannels == 2),
+                            audioChannelsToolStripMenuItem);
                 audioChannelsToolStripMenuItem.Enabled = true;
-
             }
             catch { audioChannelsToolStripMenuItem.Enabled = false; }
 
@@ -806,11 +815,8 @@ namespace CaptureGame
 
                 // Get new video device
                 ToolStripMenuItem m = sender as ToolStripMenuItem;
-
                 videoDevice = (m.Owner.Items.Count > 0 ? filters.VideoInputDevices[m.Owner.Items.IndexOf(m) - 1] : null);
-                //MenuItem m = sender as MenuItem;
-                //videoDevice = (  m.Index>0 ? filters.VideoInputDevices[m.Index-1] : null );
-
+                
                 // Create capture object
                 if ((videoDevice != null) || (audioDevice != null))
                 {
@@ -887,8 +893,6 @@ namespace CaptureGame
                 ToolStripMenuItem m = sender as ToolStripMenuItem;
                 capture.VideoCompressor = (m.Owner.Items.Count > 0 ? filters.VideoCompressors[m.Owner.Items.IndexOf(m) - 1] : null);
 
-                //MenuItem m = sender as MenuItem;
-                //capture.VideoCompressor = ( m.Index>0 ? filters.VideoCompressors[m.Index-1] : null );
                 updateMenu();
             }
             catch (Exception ex)
@@ -1103,13 +1107,14 @@ namespace CaptureGame
             string selectedVD = "", selectedARO = "", selectedAID = "";
             try { selectedVD = capture.VideoDevice.Name; }
             catch (Exception) { }
-            // get sound output devices
+            // get sound output devices (AudioRenderers)
             DsDevice[] devices;
             devices = DsDevice.GetDevicesOfCat(FilterCategory.AudioRendererCategory);
             foreach (ToolStripMenuItem i in audioOutputToolStripMenuItem.DropDownItems)
             { // Search the output device menu for the selected device and get it's index number
                 if (i.Checked)
                 {
+                    // Check the device is still valid and connected
                     foreach (DsDevice dsd in devices)
                     {
                         if (dsd.Name.Equals(i.Text))
@@ -1124,7 +1129,7 @@ namespace CaptureGame
             // Mic input
             devices = DsDevice.GetDevicesOfCat(FilterCategory.AudioInputDevice);
             foreach (ToolStripMenuItem i in audioDevicesToolStripMenuItem.DropDownItems)
-            {  // find the desired input device to be used from the AudioDevices menu
+            {  // find the checked input device from the AudioDevices menu
                 if (i.Checked)
                 { selectedAID = i.Text; }
             }
@@ -1184,7 +1189,7 @@ namespace CaptureGame
         /// <summary>
         /// Adds menu items to the specified DropDownItems target 
         /// </summary>
-        /// <param name="itemText">Text for the menu item.<./param>
+        /// <param name="itemText">Text for the menu item.</param>
         /// <param name="ehHandle">EventHandler the item will be assigned.</param>
         /// <param name="makeChecked">Make the menu item checked</param>
         /// <param name="dropDownTarget">ToolStripMenuItem to put the menu item under</param>
@@ -1212,15 +1217,21 @@ namespace CaptureGame
             {
                 if (capture.PreviewWindow == null)
                 {
-                    capture.PreviewWindow = panelVideo;
-                    previewToolStripMenuItem.Checked = true;
-
-                    ///TODO: Sync issue?
+                    ///TODO: Audiio Sync issues
                     int readIn, readOut;
                     WalkDevices(out readIn, out readOut);
                     // Connect input to output then run
                     Connect_up(readIn, readOut);
                     m_objMediaControl.Run();
+                    /* Sleep hack Timer: temporary solution to audio sync issue.
+                     * Basically have the audio start before the video and hope it syncs.
+                     * At least for me it's roughly a second behind.
+                     */
+
+                    sleepHack.Tick += new EventHandler(SleepHackTimerEvent);
+                    sleepHack.Interval = Settings.Default.AudioDelay;
+                    sleepHack.Start();
+
                 }
                 else
                 {
@@ -1286,7 +1297,13 @@ namespace CaptureGame
                 count++;
             }
         }
-
+        private void SleepHackTimerEvent (object sender, EventArgs eargs)
+        {
+            sleepHack.Stop();
+            capture.PreviewWindow = panelVideo;
+            previewToolStripMenuItem.Checked = true;
+            
+        }
         private void FrmCaptureTest_KeyPress(object sender, KeyPressEventArgs e)
         {
             switch (e.KeyChar)
@@ -1296,6 +1313,9 @@ namespace CaptureGame
                     break;
                 case 'p':
                     PreviewToolStripMenuItem_Click(this, null);
+                    break;
+                case 'd':
+                    AudioDelayToolStripMenuItem_Click(this, null);
                     break;
             }
             
@@ -1483,6 +1503,15 @@ namespace CaptureGame
             DialogResult result = inputBox.ShowDialog();
             input = textBox.Text;
             return result;
+        }
+
+        private void AudioDelayToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            string delay = "";
+            int delayValue = 0;
+            ShowInputDialog(ref delay);
+            int.TryParse(delay, out delayValue);
+            Settings.Default.AudioDelay = delayValue;
         }
     }
 }

@@ -70,5 +70,53 @@ namespace CaptureGame.Properties {
                 this["LastAudioRenderer"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("1280")]
+        public int FrameWidth {
+            get {
+                return ((int)(this["FrameWidth"]));
+            }
+            set {
+                this["FrameWidth"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("720")]
+        public int FrameHeight {
+            get {
+                return ((int)(this["FrameHeight"]));
+            }
+            set {
+                this["FrameHeight"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool UseCustomFrameSize {
+            get {
+                return ((bool)(this["UseCustomFrameSize"]));
+            }
+            set {
+                this["UseCustomFrameSize"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("1000")]
+        public int AudioDelay {
+            get {
+                return ((int)(this["AudioDelay"]));
+            }
+            set {
+                this["AudioDelay"] = value;
+            }
+        }
     }
 }
