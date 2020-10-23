@@ -127,9 +127,7 @@ namespace CaptureGame
             if (disposing)
             {
                 if (components != null)
-                {
-                    components.Dispose();
-                }
+                { components.Dispose(); }
             }
             base.Dispose(disposing);
         }
@@ -597,11 +595,9 @@ namespace CaptureGame
                 for (int c = 0; c < filters.VideoCompressors.Count; c++)
                 {
                     f = filters.VideoCompressors[c];
-                    tsmi = new ToolStripMenuItem(f.Name, null, new EventHandler(mnuVideoCompressors_Click));
-                    tsmi.Checked = (capture.VideoCompressor == f);
-                    videoCompressorsToolStripMenuItem.DropDownItems.Add(tsmi);
+                    MenuItemAdd(f.Name, new EventHandler(mnuVideoCompressors_Click), (capture.VideoCompressor == f),
+                                videoCompressorsToolStripMenuItem);
                 }
-
                 videoCompressorsToolStripMenuItem.Enabled = ((capture.VideoDevice != null) && (filters.VideoCompressors.Count > 0));
             }
             catch { videoCompressorsToolStripMenuItem.Enabled = false; }
@@ -617,10 +613,8 @@ namespace CaptureGame
                 for (int c = 0; c < filters.AudioCompressors.Count; c++)
                 {
                     f = filters.AudioCompressors[c];
-                    tsmi = new ToolStripMenuItem(f.Name, null, new EventHandler(mnuAudioCompressors_Click));
-                    tsmi.Checked = (capture.AudioCompressor == f);
-                    audioCompressorsToolStripMenuItem.DropDownItems.Add(tsmi);
-
+                    MenuItemAdd(f.Name, new EventHandler(mnuAudioCompressors_Click),
+                                (capture.AudioCompressor == f), audioCompressorsToolStripMenuItem);
                 }
                 audioCompressorsToolStripMenuItem.Enabled = ((capture.AudioDevice != null) && (filters.AudioCompressors.Count > 0));
             }
@@ -660,21 +654,18 @@ namespace CaptureGame
                 videoFrameRateToolStripMenuItem.DropDownItems.Clear();
 
                 int frameRate = (int)(capture.FrameRate * 1000);
-                MenuItemAdd("15 fps", new EventHandler(mnuFrameRates_Click), (frameRate == 15000), videoFrameRateToolStripMenuItem);
-                MenuItemAdd("24 fps (Film)", new EventHandler(mnuFrameRates_Click),
-                    (frameRate == 24000), videoFrameRateToolStripMenuItem);
-                tsmi = new ToolStripMenuItem("25 fps (PAL)", null, new EventHandler(mnuFrameRates_Click));
-                tsmi.Checked = (frameRate == 25000);
-                videoFrameRateToolStripMenuItem.DropDownItems.Add(tsmi);
-                tsmi = new ToolStripMenuItem("29.997 fps (NTSC)", null, new EventHandler(mnuFrameRates_Click));
-                tsmi.Checked = (frameRate == 29997);
-                videoFrameRateToolStripMenuItem.DropDownItems.Add(tsmi);
-                tsmi = new ToolStripMenuItem("30 fps (~NTSC)", null, new EventHandler(mnuFrameRates_Click));
-                tsmi.Checked = (frameRate == 30000);
-                videoFrameRateToolStripMenuItem.DropDownItems.Add(tsmi);
-                tsmi = new ToolStripMenuItem("59.994 fps (2xNTSC)", null, new EventHandler(mnuFrameRates_Click));
-                tsmi.Checked = (frameRate == 59994);
-                videoFrameRateToolStripMenuItem.DropDownItems.Add(tsmi);
+                MenuItemAdd("15 fps", new EventHandler(mnuFrameRates_Click), (frameRate == 15000),
+                            videoFrameRateToolStripMenuItem);
+                MenuItemAdd("24 fps (Film)", new EventHandler(mnuFrameRates_Click), (frameRate == 24000),
+                            videoFrameRateToolStripMenuItem);
+                MenuItemAdd("25 fps (PAL)", new EventHandler(mnuFrameRates_Click),(frameRate == 25000),
+                            videoFrameRateToolStripMenuItem);
+                MenuItemAdd("29.997 fps (NTSC)", new EventHandler(mnuFrameRates_Click), (frameRate == 29997),
+                            videoFrameRateToolStripMenuItem);
+                MenuItemAdd("30 fps (~NTSC)", new EventHandler(mnuFrameRates_Click), (frameRate == 30000),
+                            videoFrameRateToolStripMenuItem);
+                MenuItemAdd("59.994 fps (2xNTSC)", new EventHandler(mnuFrameRates_Click), (frameRate == 59994),
+                            videoFrameRateToolStripMenuItem);
                 MenuItemAdd("60 FPS", new EventHandler(mnuFrameRates_Click), (frameRate == 60000), videoFrameRateToolStripMenuItem);
                 videoFrameRateToolStripMenuItem.Enabled = true;
             }
