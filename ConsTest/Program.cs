@@ -1,5 +1,5 @@
-﻿using System;
-using DirectShowLib;
+﻿using DirectShowLib;
+using System;
 
 namespace ConsTest
 {
@@ -39,7 +39,7 @@ namespace ConsTest
             count--; // Subtract one to make it zero-indexed
             readI = getDeviceNumber(count);
             Console.WriteLine("Selected Device: " + devices[readI].Name);
-            Connect_up(readI,readA);
+            Connect_up(readI, readA);
 
             setUpSound();
 
@@ -73,7 +73,7 @@ namespace ConsTest
             device.Mon.BindToObject(null, null, ref iid, out inputD);
 
             m_objFilterGraph.AddFilter((IBaseFilter)inputD, "Capture");
-          
+
             int result;
             IEnumPins pInputPin = null, pOutputPin = null;// Pin enumeration
             IPin pIn = null, pOut = null;// Pins

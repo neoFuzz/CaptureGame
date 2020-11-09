@@ -1,20 +1,20 @@
+//using DirectX.Capture;
 using CaptureGame.Properties;
-using DirectX.Capture;
+using DirectShowLib;
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
-using DirectShowLib;
-using TunerInputType = DirectX.Capture.TunerInputType;
 
 namespace CaptureGame
 {
     public class FrmCaptureGame : System.Windows.Forms.Form
     {
-        private Capture capture = null;
-        private Filters filters = new Filters();
+        private enum PlayState { Stopped, Paused, Running, Init };
+        //private Capture capture = null;
+        //private Filters filters = new Filters();
         private MainMenu mainMenu;
         private Panel panelVideo;
         private MenuStrip msMainMenu;
@@ -48,17 +48,23 @@ namespace CaptureGame
         private ToolStripSeparator toolStripSeparator6;
         private ToolStripMenuItem previewToolStripMenuItem;
         private ToolStripMenuItem testAToolStripMenuItem;
+        private ToolStripMenuItem audioDelayToolStripMenuItem;
         private IContainer components;
         private ToolStripMenuItem audioOutputToolStripMenuItem;
         private ToolStripMenuItem breakerToolStripMenuItem;
-        private static IGraphBuilder m_objFilterGraph = null;
-        private static IBasicAudio m_objBasicAudio = null;
-        private static IMediaControl m_objMediaControl = null;
+        private static IGraphBuilder objFilterGraph = null;
+        private static IBasicAudio objBasicAudio = null;
+        private static IMediaControl objMediaControl = null;
+        private IVideoWindow videoWindow = null;
+        private IMediaEventEx mediaEventEx = null;
+        private ICaptureGraphBuilder2 captureGraphBuilder = null;
+        private DsROTEntry rot = null;
         private ToolStripMenuItem GameNameToolStripMenuItem;
         private ToolStripSeparator toolStripSeparator7;
         private DsDevice[] devices;
-        private ToolStripMenuItem audioDelayToolStripMenuItem;
-        Timer sleepHack = new Timer();
+        private Timer sleepHack = new Timer();
+        public const int WM_GRAPHNOTIFY = 0x8000 + 1;
+        private PlayState currentState = PlayState.Stopped;
 
         public FrmCaptureGame()
         {
@@ -67,56 +73,67 @@ namespace CaptureGame
             //
             InitializeComponent();
 
-            // Start with the first video/audio devices
-            // Don't do this in the Release build in case the
-            // first devices cause problems.
-#if DEBUG
-            capture = new Capture(filters.VideoInputDevices[0], filters.AudioInputDevices[0]);
-            capture.CaptureComplete += new EventHandler(OnCaptureComplete);
-#endif
-            /**/
+           
+            // Update the main menu
+            // Much of the interesting work occurs here
+            try
+            {
+                updateMenu();
+                GetInterfaces();
+            }
+            catch { }
+
             // first run capture = null, so set up settings.
             // Set to default device because there is a empty user setting. 
             int aid = 0, vid = 0;
             bool aSet = false, vSet = false;
+            devices = DsDevice.GetDevicesOfCat(FilterCategory.VideoInputDevice);
             if (!Settings.Default.LastVideoDevice.Equals(""))
             {
-                for (int i = 0; i < filters.VideoInputDevices.Count; i++)
+                for (int i = 0; i < devices.Length; i++)
                 {
-                    if (filters.VideoInputDevices[i].Name.Equals(Settings.Default.LastVideoDevice))
+                    if (devices[i].Name.Equals(Settings.Default.LastVideoDevice))
                     { vid = i; vSet = true; }
                 }
             }
+            devices = DsDevice.GetDevicesOfCat(FilterCategory.AudioInputDevice);
             if (!Settings.Default.LastAudioIn.Equals(""))
             {
-                for (int i = 0; i < filters.AudioInputDevices.Count; i++)
+                for (int i = 0; i < devices.Length; i++)
                 {
-                    if (filters.AudioInputDevices[i].Name.Equals(Settings.Default.LastAudioIn))
-                    { aid = i; aSet = true;  }
+                    if (devices[i].Name.Equals(Settings.Default.LastAudioIn))
+                    { aid = i; aSet = true; }
                 }
             }
             if (aSet && vSet)
             {
-                capture = new Capture(filters.VideoInputDevices[vid], filters.AudioInputDevices[aid]);
-                capture.CaptureComplete += new EventHandler(OnCaptureComplete);
+                // ******** Set devices for capture. ********
+                //capture = new Capture(filters.VideoInputDevices[vid], filters.AudioInputDevices[aid]);
+                //capture.CaptureComplete += new EventHandler(OnCaptureComplete);
             }
             // Check the user settings; if the Device has a string, add a menu item with the string.
+            // updateMenu() will see the items are checked and make them checked again.
             if (!Settings.Default.LastAudioRenderer.Equals(""))
-            { // updateMenu() will see this checked and make it checked again.
-                MenuItemAdd(Settings.Default.LastAudioRenderer, null, true, audioOutputToolStripMenuItem); 
+            { 
+                MenuItemAdd(Settings.Default.LastAudioRenderer, null, true, audioOutputToolStripMenuItem);
             }
-
-            // Update the main menu
-            // Much of the interesting work occurs here
-            try {
-                updateMenu();
-                m_objFilterGraph = (IGraphBuilder) new FilterGraph();
-                m_objMediaControl = m_objFilterGraph as IMediaControl;
-            } catch { }
+            if (!Settings.Default.LastVideoDevice.Equals(""))
+            { 
+                MenuItemAdd(Settings.Default.LastVideoDevice, null, true, videoDevicesToolStripMenuItem);
+            }
+            // Start with the first video/audio devices
+            // Don't do this in the Release build in case the
+            // first devices cause problems.
+#if DEBUG
+            /* capture = new Capture(filters.VideoInputDevices[0], filters.AudioInputDevices[0]);
+             * capture.CaptureComplete += new EventHandler(OnCaptureComplete);
+             */
+            CaptureVideo();
+#endif
             // Load the GameName from settings. There is a defult set for users straight away
             Text = Settings.Default.GameName;
             // Activate the form!
-            Activate();            
+            Activate();
         }
 
         /// <summary>
@@ -128,6 +145,7 @@ namespace CaptureGame
             {
                 if (components != null)
                 { components.Dispose(); }
+                CloseInterfaces();
             }
             base.Dispose(disposing);
         }
@@ -146,6 +164,7 @@ namespace CaptureGame
             this.msMainMenu = new System.Windows.Forms.MenuStrip();
             this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.GameNameToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.audioDelayToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator7 = new System.Windows.Forms.ToolStripSeparator();
             this.exitToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.devicesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -178,7 +197,6 @@ namespace CaptureGame
             this.propertyPagesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator6 = new System.Windows.Forms.ToolStripSeparator();
             this.previewToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.audioDelayToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.msMainMenu.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -220,19 +238,26 @@ namespace CaptureGame
             // GameNameToolStripMenuItem
             // 
             this.GameNameToolStripMenuItem.Name = "GameNameToolStripMenuItem";
-            this.GameNameToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.GameNameToolStripMenuItem.Size = new System.Drawing.Size(149, 22);
             this.GameNameToolStripMenuItem.Text = "Game Name...";
             this.GameNameToolStripMenuItem.Click += new System.EventHandler(this.GameNameToolStripMenuItem_Click);
+            // 
+            // audioDelayToolStripMenuItem
+            // 
+            this.audioDelayToolStripMenuItem.Name = "audioDelayToolStripMenuItem";
+            this.audioDelayToolStripMenuItem.Size = new System.Drawing.Size(149, 22);
+            this.audioDelayToolStripMenuItem.Text = "Audio Delay...";
+            this.audioDelayToolStripMenuItem.Click += new System.EventHandler(this.AudioDelayToolStripMenuItem_Click);
             // 
             // toolStripSeparator7
             // 
             this.toolStripSeparator7.Name = "toolStripSeparator7";
-            this.toolStripSeparator7.Size = new System.Drawing.Size(177, 6);
+            this.toolStripSeparator7.Size = new System.Drawing.Size(146, 6);
             // 
             // exitToolStripMenuItem
             // 
             this.exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-            this.exitToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.exitToolStripMenuItem.Size = new System.Drawing.Size(149, 22);
             this.exitToolStripMenuItem.Text = "E&xit";
             this.exitToolStripMenuItem.Click += new System.EventHandler(this.ExitToolStripMenuItem_Click);
             // 
@@ -448,13 +473,6 @@ namespace CaptureGame
             this.previewToolStripMenuItem.Text = "&Preview";
             this.previewToolStripMenuItem.Click += new System.EventHandler(this.PreviewToolStripMenuItem_Click);
             // 
-            // audioDelayToolStripMenuItem
-            // 
-            this.audioDelayToolStripMenuItem.Name = "audioDelayToolStripMenuItem";
-            this.audioDelayToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
-            this.audioDelayToolStripMenuItem.Text = "Audio Delay...";
-            this.audioDelayToolStripMenuItem.Click += new System.EventHandler(this.AudioDelayToolStripMenuItem_Click);
-            // 
             // FrmCaptureGame
             // 
             this.AutoScaleBaseSize = new System.Drawing.Size(5, 13);
@@ -468,6 +486,7 @@ namespace CaptureGame
             this.Text = "FrmCaptureTest";
             this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.CaptureTest_FormClosed);
             this.Load += new System.EventHandler(this.CaptureTest_Load);
+            this.ResizeEnd += new System.EventHandler(this.FrmCaptureGame_ResizeEnd);
             this.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.FrmCaptureTest_KeyPress);
             this.msMainMenu.ResumeLayout(false);
             this.msMainMenu.PerformLayout();
@@ -486,57 +505,127 @@ namespace CaptureGame
             AppDomain currentDomain = AppDomain.CurrentDomain;
             Application.Run(new FrmCaptureGame());
         }
+
+        public void CloseInterfaces()
+        {
+            // Stop previewing data
+            if (objMediaControl != null)
+                objMediaControl.StopWhenReady();
+
+            currentState = PlayState.Stopped;
+
+            // Stop receiving events
+            if (mediaEventEx != null)
+                mediaEventEx.SetNotifyWindow(IntPtr.Zero, WM_GRAPHNOTIFY, IntPtr.Zero);
+
+            // Relinquish ownership (IMPORTANT!) of the video window.
+            // Failing to call put_Owner can lead to assert failures within
+            // the video renderer, as it still assumes that it has a valid
+            // parent window.
+            if (videoWindow != null)
+            {
+                videoWindow.put_Visible(OABool.False);
+                videoWindow.put_Owner(IntPtr.Zero);
+            }
+
+            // Remove filter graph from the running object table
+            if (rot != null)
+            {
+                rot.Dispose();
+                rot = null;
+            }
+
+            // Release DirectShow interfaces
+            Marshal.ReleaseComObject(objMediaControl); objMediaControl = null;
+            Marshal.ReleaseComObject(mediaEventEx); mediaEventEx = null;
+            Marshal.ReleaseComObject(videoWindow); videoWindow = null;
+            Marshal.ReleaseComObject(objFilterGraph); objFilterGraph = null;
+            Marshal.ReleaseComObject(captureGraphBuilder); captureGraphBuilder = null;
+        }
+
+        public void SetupVideoWindow()
+        {
+            int hr = 0;
+
+            // Set the video window to be a child of the main window
+            hr = this.videoWindow.put_Owner(this.Handle);
+            DsError.ThrowExceptionForHR(hr);
+
+            hr = this.videoWindow.put_WindowStyle(WindowStyle.Child | WindowStyle.ClipChildren);
+            DsError.ThrowExceptionForHR(hr);
+
+            // Use helper function to position video window in client rect 
+            // of main application window
+            ResizeVideoWindow();
+
+            // Make the video window visible, now that it is properly positioned
+            hr = this.videoWindow.put_Visible(OABool.True);
+            DsError.ThrowExceptionForHR(hr);
+        }
+        public void ResizeVideoWindow()
+        {
+            // Resize the video preview window to match owner window size
+            if (this.videoWindow != null)
+            {
+                this.videoWindow.SetWindowPosition(0, 0, this.ClientSize.Width, this.ClientSize.Height);
+            }
+        }
         private void btnExit_Click(object sender, System.EventArgs e)
         {
-            if (capture != null)
-                capture.Stop();
+            ChangePreviewState(false);
             Application.Exit();
         }
+
         private void updateMenu()
         {
             ToolStripMenuItem tsmi =
                 new ToolStripMenuItem("(None)", null, new EventHandler(mnuVideoDevices_Click));
-            Filter f, videoDevice = null, audioDevice = null;
-            Source s;
-            Source current;
-            PropertyPage p;
-            Control oldPreviewWindow = null;
+            /*
+             * Filter f, videoDevice = null, audioDevice = null;
+             * Source s; Source current;
+             * PropertyPage p; */
+            IBaseFilter f, videoDevice = null;
+
+            IVideoWindow oldPreviewWindow = null;
 
             // Disable preview to avoid additional flashes (optional)
-            if (capture != null)
+            if (currentState == PlayState.Running)
             {
-                oldPreviewWindow = capture.PreviewWindow;
-                capture.PreviewWindow = null;
+                oldPreviewWindow = videoWindow;
+                videoWindow = null;
             }
 
             // Load video devices
-            if (capture != null)
+            devices = DsDevice.GetDevicesOfCat(FilterCategory.VideoInputDevice);
+            int i = objFilterGraph.FindFilterByName("Video Capture", out f);
+            if (i == 0)
             {
-                videoDevice = capture.VideoDevice;
-                Settings.Default.LastVideoDevice = capture.VideoDevice.Name; // Save new device to user settings
+                videoDevice = f;
+                videoDevice.QueryFilterInfo(out FilterInfo fi);
+                Settings.Default.LastVideoDevice = fi.achName; // Save new device to user settings
             }
             videoDevicesToolStripMenuItem.DropDownItems.Clear();
 
             tsmi.Checked = (videoDevice == null);
             videoDevicesToolStripMenuItem.DropDownItems.Add(tsmi);
-            for (int c = 0; c < filters.VideoInputDevices.Count; c++)
-            {
-                f = filters.VideoInputDevices[c];
-                MenuItemAdd(f.Name, new EventHandler(mnuVideoDevices_Click), (videoDevice == f),
+            for (int c = 0; c < devices.Length; c++)
+            {// videodevice is the active device
+                MenuItemAdd(devices[c].Name, new EventHandler(mnuVideoDevices_Click), (videoDevice.ToString() == devices[c].Name),
                             videoDevicesToolStripMenuItem);
             }
-            videoDevicesToolStripMenuItem.Enabled = (filters.VideoInputDevices.Count > 0);
-
+            videoDevicesToolStripMenuItem.Enabled = (devices.Length > 0);
+            objFilterGraph.EnumFilters(out IEnumFilters poutFilters);
+            poutFilters.Next()
             // Load audio devices
-            if (capture != null)
-                audioDevice = capture.AudioDevice;
+            if (currentState != PlayState.Stopped)
+            { audioDevice = capture.AudioDevice; }
             audioDevicesToolStripMenuItem.DropDownItems.Clear();
             tsmi = new ToolStripMenuItem("(None)", null, new EventHandler(mnuAudioDevices_Click));
             tsmi.Checked = (audioDevice == null);
             audioDevicesToolStripMenuItem.DropDownItems.Add(tsmi);
             for (int c = 0; c < filters.AudioInputDevices.Count; c++)
             {
-                f = filters.AudioInputDevices[c];
+                f = filters.AudioInputDevices[c];//something
                 MenuItemAdd(f.Name, new EventHandler(mnuAudioDevices_Click), audioDevice == f,
                             audioDevicesToolStripMenuItem);
             }
@@ -547,7 +636,7 @@ namespace CaptureGame
             {
                 devices = DsDevice.GetDevicesOfCat(FilterCategory.AudioRendererCategory);
                 string CheckedDeviceName = ""; // String to hold the checked device name
-                foreach(ToolStripMenuItem i in audioOutputToolStripMenuItem.DropDownItems)
+                foreach (ToolStripMenuItem i in audioOutputToolStripMenuItem.DropDownItems)
                 {
                     //If the item is checked, store the checked item name to the string
                     if (i.Checked)
@@ -658,7 +747,7 @@ namespace CaptureGame
                             videoFrameRateToolStripMenuItem);
                 MenuItemAdd("24 fps (Film)", new EventHandler(mnuFrameRates_Click), (frameRate == 24000),
                             videoFrameRateToolStripMenuItem);
-                MenuItemAdd("25 fps (PAL)", new EventHandler(mnuFrameRates_Click),(frameRate == 25000),
+                MenuItemAdd("25 fps (PAL)", new EventHandler(mnuFrameRates_Click), (frameRate == 25000),
                             videoFrameRateToolStripMenuItem);
                 MenuItemAdd("29.997 fps (NTSC)", new EventHandler(mnuFrameRates_Click), (frameRate == 29997),
                             videoFrameRateToolStripMenuItem);
@@ -682,7 +771,7 @@ namespace CaptureGame
                             videoFrameSizeToolStripMenuItem);
                 MenuItemAdd("640 x 480", new EventHandler(mnuFrameSizes_Click), frameSize == new Size(640, 480),
                             videoFrameSizeToolStripMenuItem);
-                MenuItemAdd("1024 x 768", new EventHandler(mnuFrameSizes_Click),frameSize == new Size(1024, 768),
+                MenuItemAdd("1024 x 768", new EventHandler(mnuFrameSizes_Click), frameSize == new Size(1024, 768),
                             videoFrameSizeToolStripMenuItem);
                 MenuItemAdd("1280 x 720", null, new EventHandler(mnuFrameSizes_Click), frameSize == new Size(1280, 720),
                             videoFrameSizeToolStripMenuItem);
@@ -807,7 +896,7 @@ namespace CaptureGame
                 // Get new video device
                 ToolStripMenuItem m = sender as ToolStripMenuItem;
                 videoDevice = (m.Owner.Items.Count > 0 ? filters.VideoInputDevices[m.Owner.Items.IndexOf(m) - 1] : null);
-                
+
                 // Create capture object
                 if ((videoDevice != null) || (audioDevice != null))
                 {
@@ -850,7 +939,7 @@ namespace CaptureGame
                     capture = new Capture(videoDevice, audioDevice);
                     capture.CaptureComplete += new EventHandler(OnCaptureComplete);
                 }
-                
+
                 // Update the menu
                 updateMenu();
             }
@@ -1130,11 +1219,11 @@ namespace CaptureGame
             Settings.Default.LastVideoDevice = selectedVD;
             Settings.Default.Save();
             // Kill everything running
-            try { m_objMediaControl.Stop(); }
+            try { objMediaControl.Stop(); }
             catch (Exception) { }
-            Marshal.ReleaseComObject(m_objFilterGraph);
-            m_objMediaControl = null;
-            m_objBasicAudio = null;
+            Marshal.ReleaseComObject(objFilterGraph);
+            objMediaControl = null;
+            objBasicAudio = null;
             if (capture != null)
             { capture.Stop(); }
             components.Dispose();
@@ -1143,7 +1232,7 @@ namespace CaptureGame
 
         private void PanelVideo_MouseClick(object sender, MouseEventArgs e)
         {
-         
+
         }
 
         private void Hide_panel()
@@ -1186,7 +1275,7 @@ namespace CaptureGame
         /// <param name="dropDownTarget">ToolStripMenuItem to put the menu item under</param>
         private void MenuItemAdd(string itemText, EventHandler ehHandle, bool makeChecked, ToolStripMenuItem dropDownTarget)
         {
-            ToolStripMenuItem tsmi = new ToolStripMenuItem(itemText, null, ehHandle){ Checked = makeChecked };
+            ToolStripMenuItem tsmi = new ToolStripMenuItem(itemText, null, ehHandle) { Checked = makeChecked };
             dropDownTarget.DropDownItems.Add(tsmi);
         }
         /// <summary>
@@ -1199,7 +1288,7 @@ namespace CaptureGame
         /// <param name="dropDownTarget">ToolStripMenuItem to put the menu item under</param>
         private void MenuItemAdd(string itemText, Image mnuImage, EventHandler ehHandle, bool makeChecked, ToolStripMenuItem dropDownTarget)
         {
-            ToolStripMenuItem tsmi = new ToolStripMenuItem(itemText, mnuImage, ehHandle){ Checked = makeChecked };
+            ToolStripMenuItem tsmi = new ToolStripMenuItem(itemText, mnuImage, ehHandle) { Checked = makeChecked };
             dropDownTarget.DropDownItems.Add(tsmi);
         }
         private void PreviewToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1213,7 +1302,7 @@ namespace CaptureGame
                     WalkDevices(out readIn, out readOut);
                     // Connect input to output then run
                     Connect_up(readIn, readOut);
-                    m_objMediaControl.Run();
+                    objMediaControl.Run();
                     /* Sleep hack Timer: temporary solution to audio sync issue.
                      * Basically have the audio start before the video and hope it syncs.
                      * At least for me it's roughly a second behind.
@@ -1230,8 +1319,8 @@ namespace CaptureGame
                     capture.PreviewWindow = null;
                     previewToolStripMenuItem.Checked = false;
                     // Stop graph
-                    m_objMediaControl.Stop();
-                    m_objFilterGraph.Abort();
+                    objMediaControl.Stop();
+                    objFilterGraph.Abort();
                 }
             }
             catch (Exception ex)
@@ -1288,12 +1377,12 @@ namespace CaptureGame
                 count++;
             }
         }
-        private void SleepHackTimerEvent (object sender, EventArgs eargs)
+        private void SleepHackTimerEvent(object sender, EventArgs eargs)
         {
             sleepHack.Stop();
             capture.PreviewWindow = panelVideo;
             previewToolStripMenuItem.Checked = true;
-            
+
         }
         private void FrmCaptureTest_KeyPress(object sender, KeyPressEventArgs e)
         {
@@ -1309,7 +1398,7 @@ namespace CaptureGame
                     AudioDelayToolStripMenuItem_Click(this, null);
                     break;
             }
-            
+
         }
 
         private void VideoCapabilitiesToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1406,18 +1495,18 @@ namespace CaptureGame
             DsDevice device = devices[dOutput];
             Guid iid = typeof(IBaseFilter).GUID;
             device.Mon.BindToObject(null, null, ref iid, out source);
-            m_objMediaControl.Stop();
-            m_objBasicAudio = null;
+            objMediaControl.Stop();
+            objBasicAudio = null;
 
-            m_objFilterGraph = (IGraphBuilder)new FilterGraph();
-            m_objFilterGraph.AddFilter((IBaseFilter)source, "Audio Input pin (rendered)");
+            objFilterGraph = (IGraphBuilder)new FilterGraph();
+            objFilterGraph.AddFilter((IBaseFilter)source, "Audio Input pin (rendered)");
 
             // Mic Input
             devices = DsDevice.GetDevicesOfCat(FilterCategory.AudioInputDevice);
             device = devices[dInput];
             device.Mon.BindToObject(null, null, ref iid, out inputD);
 
-            m_objFilterGraph.AddFilter((IBaseFilter)inputD, "Capture");
+            objFilterGraph.AddFilter((IBaseFilter)inputD, "Capture");
 
 
             int result;
@@ -1445,8 +1534,8 @@ namespace CaptureGame
             catch (Exception ex)
             { MessageBox.Show(ex.Message, "Connection Failure"); }
 
-            m_objBasicAudio = m_objFilterGraph as IBasicAudio;
-            m_objMediaControl = m_objFilterGraph as IMediaControl;
+            objBasicAudio = objFilterGraph as IBasicAudio;
+            objMediaControl = objFilterGraph as IMediaControl;
 
         }
 
@@ -1503,6 +1592,147 @@ namespace CaptureGame
             ShowInputDialog(ref delay);
             int.TryParse(delay, out delayValue);
             Settings.Default.AudioDelay = delayValue;
+        }
+
+        public void CaptureVideo()
+        {
+            int hr = 0;
+            IBaseFilter sourceFilter = null;
+
+            try
+            {
+                // Get DirectShow interfaces
+                GetInterfaces();
+
+                // Attach the filter graph to the capture graph
+                hr = captureGraphBuilder.SetFiltergraph(objFilterGraph);
+                DsError.ThrowExceptionForHR(hr);
+
+                // Use the system device enumerator and class enumerator to find
+                // a video capture/preview device, such as a desktop USB video camera.
+                sourceFilter = FindCaptureDevice();
+
+                // Add Capture filter to our graph.
+                hr = objFilterGraph.AddFilter(sourceFilter, "Video Capture");
+                DsError.ThrowExceptionForHR(hr);
+
+                // Render the preview pin on the video capture filter
+                // Use this instead of this.graphBuilder.RenderFile
+                hr = captureGraphBuilder.RenderStream(PinCategory.Preview, MediaType.Video, sourceFilter, null, null);
+                DsError.ThrowExceptionForHR(hr);
+
+                // Now that the filter has been added to the graph and we have
+                // rendered its stream, we can release this reference to the filter.
+                Marshal.ReleaseComObject(sourceFilter);
+
+                // Set video window style and position
+                SetupVideoWindow();
+
+                // Add our graph to the running object table, which will allow
+                // the GraphEdit application to "spy" on our graph
+                rot = new DsROTEntry(objFilterGraph);
+
+                // Start previewing video data
+                hr = objMediaControl.Run();
+                DsError.ThrowExceptionForHR(hr);
+
+                // Remember current state
+                currentState = PlayState.Running;
+            }
+            catch
+            { MessageBox.Show("An unrecoverable error has occurred."); }
+        }
+        public void GetInterfaces()
+        {
+            int hr = 0;
+
+            // An exception is thrown if cast fail
+            objFilterGraph = (IGraphBuilder)new FilterGraph();
+            captureGraphBuilder = (ICaptureGraphBuilder2)new CaptureGraphBuilder2();
+            objMediaControl = (IMediaControl)objFilterGraph;
+            videoWindow = (IVideoWindow)objFilterGraph;
+            mediaEventEx = (IMediaEventEx)objFilterGraph;
+
+            hr = this.mediaEventEx.SetNotifyWindow(this.Handle, WM_GRAPHNOTIFY, IntPtr.Zero);
+            DsError.ThrowExceptionForHR(hr);
+        }
+
+        public void ChangePreviewState(bool showVideo)
+        {
+            int hr = 0;
+
+            // If the media control interface isn't ready, don't call it
+            if (objMediaControl == null)
+                return;
+
+            if (showVideo)
+            {
+                if (this.currentState != PlayState.Running)
+                {
+                    // Start previewing video data
+                    hr = objMediaControl.Run();
+                    currentState = PlayState.Running;
+                }
+            }
+            else
+            {
+                // Stop previewing video data
+                hr = objMediaControl.StopWhenReady();
+                currentState = PlayState.Stopped;
+            }
+        }
+
+        public void HandleGraphEvent()
+        {
+            int hr = 0;
+            EventCode evCode;
+            IntPtr evParam1, evParam2;
+
+            if (mediaEventEx == null)
+                return;
+
+            while (mediaEventEx.GetEvent(out evCode, out evParam1, out evParam2, 0) == 0)
+            {
+                // Free event parameters to prevent memory leaks associated with
+                // event parameter data.  While this application is not interested
+                // in the received events, applications should always process them.
+                hr = mediaEventEx.FreeEventParams(evCode, evParam1, evParam2);
+                DsError.ThrowExceptionForHR(hr);
+
+                // Insert event processing code here, if desired
+            }
+        }
+
+        IBaseFilter FindCaptureDevice(int deviceIndex)
+        {
+            // Get all video input devices
+            DsDevice[] devices = DsDevice.GetDevicesOfCat(FilterCategory.VideoInputDevice);
+
+            // Take the first device
+            DsDevice device = devices[deviceIndex];
+
+            // Bind Moniker to a filter object
+            Guid iid = typeof(IBaseFilter).GUID;
+            device.Mon.BindToObject(null, null, ref iid, out object source);
+
+            // An exception is thrown if cast fail
+            return (IBaseFilter)source;
+        }
+
+        IBaseFilter FindCaptureDevice()
+        { return FindCaptureDevice(0); }
+
+        private void FrmCaptureGame_ResizeEnd(object sender, EventArgs e)
+        {
+            // Stop graph when Form is iconic
+            if (this.WindowState == FormWindowState.Minimized)
+                ChangePreviewState(false);
+
+            // Restart Graph when window come back to normal state
+            if (this.WindowState == FormWindowState.Normal)
+                ChangePreviewState(true);
+
+            ResizeVideoWindow();
         }
     }
 }

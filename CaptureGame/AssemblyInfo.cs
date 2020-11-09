@@ -1,6 +1,5 @@
-using System.Resources;
 using System.Reflection;
-using System.Runtime.CompilerServices;
+using System.Resources;
 
 //
 // General Information about an assembly is controlled through the following 
@@ -14,7 +13,7 @@ using System.Runtime.CompilerServices;
 [assembly: AssemblyProduct("")]
 [assembly: AssemblyCopyright("GNU GPL Freedom")]
 [assembly: AssemblyTrademark("")]
-[assembly: AssemblyCulture("")]		
+[assembly: AssemblyCulture("")]
 
 //
 // Version information for an assembly consists of the following four values:
